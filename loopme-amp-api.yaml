@@ -1,0 +1,255 @@
+openapi: 3.0.3
+info:
+  title: LoopMe AMP External Reporting API
+  description: API for accessing LoopMe AMP studies and performance reports.
+  version: "1.0.0"
+servers:
+  - url: https://ampapis.loopme.com
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  responses:
+    UnauthorizedError:
+      description: Access token is missing or invalid
+    ForbiddenError:
+      description: Insufficient permissions
+    NotFoundError:
+      description: Resource not found
+    BadRequestError:
+      description: Invalid request parameters
+
+security:
+  - bearerAuth: []
+
+paths:
+  /v1/oauth/token:
+    post:
+      summary: Obtain OAuth Access Token
+      description: Exchange Client ID and Secret for an OAuth2 access token.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - grant_type
+                - audience
+                - client_id
+                - client_secret
+              properties:
+                grant_type:
+                  type: string
+                  example: client_credentials
+                audience:
+                  type: string
+                  example: https://ampapis.loopme.com
+                client_id:
+                  type: string
+                client_secret:
+                  type: string
+      responses:
+        "200":
+          description: OAuth token response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  access_token:
+                    type: string
+                  token_type:
+                    type: string
+                  expires_in:
+                    type: integer
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+
+  /amp/v1Alpha1/accounts/-/studies:
+    get:
+      summary: List Studies
+      description: Retrieve all studies across accounts.
+      parameters:
+        - name: filter
+          in: query
+          description: Filter studies by status (e.g., status:2 for active)
+          required: false
+          schema:
+            type: string
+        - name: page_size
+          in: query
+          description: Number of results per page
+          required: false
+          schema:
+            type: integer
+        - name: page_token
+          in: query
+          description: Token for fetching the next page
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of studies
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  studies:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                        display_name:
+                          type: string
+                        create_time:
+                          type: string
+                          format: date-time
+                        update_time:
+                          type: string
+                          format: date-time
+                        state:
+                          type: string
+                          enum: [ACTIVE, INACTIVE, ARCHIVED]
+                  next_page_token:
+                    type: string
+                  total_size:
+                    type: integer
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+
+  /amp/v1Alpha1/accounts/{accountId}/studies/{studyId}:
+    get:
+      summary: Get Study Details
+      parameters:
+        - name: accountId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: 2403
+        - name: studyId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: 2024996
+      responses:
+        "200":
+          description: Study details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  name:
+                    type: string
+                  display_name:
+                    type: string
+                  create_time:
+                    type: string
+                    format: date-time
+                  update_time:
+                    type: string
+                    format: date-time
+                  state:
+                    type: string
+                    enum: [ACTIVE, INACTIVE, ARCHIVED]
+                  config:
+                    type: object
+                    additionalProperties: true
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+
+  /amp/v1Alpha1/accounts/{accountId}/studies/{studyId}/reports/performance:
+    get:
+      summary: Get Study Performance Report
+      parameters:
+        - name: accountId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: 2403
+        - name: studyId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: 2024996
+        - name: format
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [json, csv, tsv]
+          description: Report format (default is json)
+      responses:
+        "200":
+          description: Performance report data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  report_data:
+                    type: object
+                    properties:
+                      metrics:
+                        type: object
+                        properties:
+                          impressions:
+                            type: integer
+                          clicks:
+                            type: integer
+                          conversions:
+                            type: integer
+                          spend:
+                            type: number
+                            format: float
+                      dimensions:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            date:
+                              type: string
+                              format: date
+                            impressions:
+                              type: integer
+                            clicks:
+                              type: integer
+                            spend:
+                              type: number
+                              format: float
+                  generated_at:
+                    type: string
+                    format: date-time
+            text/csv:
+              schema:
+                type: string
+                format: binary
+            text/tab-separated-values:
+              schema:
+                type: string
+                format: binary
+        "400":
+          $ref: "#/components/responses/BadRequestError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
